@@ -45,6 +45,28 @@ Each MCP contains:
 Refer to each MCP's README or documentation for usage instructions.  
 To use an MCP, follow the instructions in its directory and ensure it is properly configured.
 
+
+## Configuration via Schema
+
+LOLLMS now supports configuration management for Apps and MCPs using a schema-driven approach. If a `schema.config.json` file is present in the root directory of an App or MCP, the system dynamically generates a configuration UI and enforces validation based on the schema.
+
+### `schema.config.json`
+
+This file defines the structure, types, defaults, and descriptions of configuration fields.  Its presence enables the dynamic configuration UI and validation.  See the LOLLMS documentation for detailed schema definition guidelines.
+
+### `config.yaml` / `config.toml`
+
+Configuration data is loaded and saved using either a `config.yaml` or `config.toml` file.  The format should correspond to the structure defined in the `schema.config.json`.
+
+### Environment Variable Mapping
+
+Specific configuration fields can be mapped to environment variables.  This mapping is defined using metadata within the `schema.config.json` file (e.g., `envVar`, `sensitive`).
+
+## Compatibility
+
+If no `schema.config.json` file is found, the system falls back to the existing default configuration behavior, ensuring compatibility with existing components.
+
+
 ---
 
 ## Contributing
