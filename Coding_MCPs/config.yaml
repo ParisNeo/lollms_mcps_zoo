@@ -1,0 +1,4 @@
+# Default configuration for Coding_MCPs
+# You can override these values or add more fields as defined in schema.config.json
+
+timeout: 10
