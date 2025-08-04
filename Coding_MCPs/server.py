@@ -21,10 +21,8 @@ from typing import Dict, Any, List, Optional
 from pathlib import Path
 import json
 import yaml
-import toml
 import os
 import tempfile
-import shutil
 
 class MCPConfig:
     """
@@ -72,7 +70,7 @@ class MCPConfig:
         """
         return self.config.get(key, default)
     
-    
+
 def parse_args():
     """
     Parse command-line arguments for the MCP server.
