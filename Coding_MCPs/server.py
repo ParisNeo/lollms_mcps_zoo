@@ -116,8 +116,6 @@ config = MCPConfig(base_path=Path(__file__).parent)
 if args.transport == "streamable-http":
     mcp = FastMCP(
         name="CodingMCPServer",
-        description="Provides code execution and analysis tools for LLMs.",
-        version="1.0.0",
         host=args.host,
         port=args.port,
         log_level=args.log_level
@@ -125,9 +123,7 @@ if args.transport == "streamable-http":
     ASCIIColors.cyan(f"{mcp.settings}")
 else:
     mcp = FastMCP(
-        name="CodingMCPServer",
-        description="Provides code execution and analysis tools for LLMs.",
-        version="1.0.0"
+        name="CodingMCPServer"
     )
 
 def install_libraries(libraries: Optional[List[str]], venv_path: Path):
