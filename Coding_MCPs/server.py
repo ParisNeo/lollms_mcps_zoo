@@ -226,6 +226,120 @@ async def check_python_syntax(code: str) -> Dict[str, Any]:
     except SyntaxError as e:
         return {"syntax_ok": False, "error": str(e)}
 
+@mcp.tool(
+    name="check_python_syntax_compile",
+    description="Checks the syntax of Python code using Python's built-in compile function."
+)
+async def check_python_syntax_compile(code: str) -> Dict[str, Any]:
+    """
+    Check the syntax of Python code using the built-in compile function.
+
+    Args:
+        code (str): The Python code to check.
+
+    Returns:
+        Dict[str, Any]: Dictionary indicating if the syntax is valid or containing the error.
+    """
+    try:
+        compile(code, "<string>", "exec")
+        return {"syntax_ok": True}
+    except SyntaxError as e:
+        return {"syntax_ok": False, "error": str(e)}
+
+@mcp.tool(
+    name="extract_imports",
+    description="Extracts the list of imported modules from Python code."
+)
+async def extract_imports(code: str) -> Dict[str, Any]:
+    """
+    Extract the list of imported modules from Python code.
+
+    Args:
+        code (str): The Python code to analyze.
+
+    Returns:
+        Dict[str, Any]: Dictionary containing a list of imported modules.
+    """
+    import ast
+    try:
+        tree = ast.parse(code)
+        imports = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    imports.add(alias.name.split('.')[0])
+            elif isinstance(node, ast.ImportFrom):
+                if node.module:
+                    imports.add(node.module.split('.')[0])
+        return {"imports": sorted(list(imports))}
+    except Exception as e:
+        return {"error": str(e)}
+
+@mcp.tool(
+    name="lint_python_code",
+    description="Lints Python code using flake8 if available."
+)
+async def lint_python_code(code: str) -> Dict[str, Any]:
+    """
+    Lint Python code using flake8.
+
+    Args:
+        code (str): The Python code to lint.
+
+    Returns:
+        Dict[str, Any]: Dictionary containing linting results or an error message.
+    """
+    import tempfile
+    try:
+        import flake8.api.legacy as flake8
+    except ImportError:
+        return {"error": "The 'flake8' module is not installed."}
+    with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as tmpfile:
+        tmpfile.write(code)
+        tmpfile_path = tmpfile.name
+    style_guide = flake8.get_style_guide(ignore=['E501'])
+    report = style_guide.check_files([tmpfile_path])
+    results = []
+    for error in report.get_statistics(''):
+        results.append(error)
+    os.unlink(tmpfile_path)
+    return {"lint_results": results, "total_errors": report.total_errors}
+
+@mcp.tool(
+    name="calculate_code_complexity",
+    description="Calculates code complexity metrics using radon if available."
+)
+async def calculate_code_complexity(code: str) -> Dict[str, Any]:
+    """
+    Calculate code complexity metrics using radon.
+
+    Args:
+        code (str): The Python code to analyze.
+
+    Returns:
+        Dict[str, Any]: Dictionary containing complexity metrics or an error message.
+    """
+    try:
+        from radon.complexity import cc_visit
+    except ImportError:
+        return {"error": "The 'radon' module is not installed."}
+    try:
+        results = cc_visit(code)
+        complexity = [
+            {
+                "name": item.name,
+                "type": item.type,
+                "lineno": item.lineno,
+                "col_offset": item.col_offset,
+                "complexity": item.complexity
+            }
+            for item in results
+        ]
+        return {"complexity": complexity}
+    except Exception as e:
+        return {"error": str(e)}
+
+
 if __name__ == "__main__":
     ASCIIColors.cyan("MCP server will list tools upon connection.")
     ASCIIColors.cyan(f"Listening for MCP messages on {mcp.run(transport=args.transport)}...")
