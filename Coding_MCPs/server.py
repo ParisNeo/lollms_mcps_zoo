@@ -128,7 +128,7 @@ if sys.platform == "linux":
 def check_and_install_dependencies():
     """Uses pipmaster to verify and install all required packages."""
     ASCIIColors.cyan("Checking for required dependencies...")
-    pm.ensure_packages(REQUIRED_PACKAGES, upgrade=True)
+    pm.ensure_packages(REQUIRED_PACKAGES)
     ASCIIColors.green("All dependencies are met.")
 
 
