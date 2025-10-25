@@ -1,0 +1,15 @@
+{
+  "title": "Coding MCPs Configuration Schema",
+  "description": "Configuration schema for the Coding_MCPs MCP. Defines available configuration options, their types, defaults, and environment variable mappings.",
+  "type": "object",
+  "properties": {
+    "timeout": {
+      "type": "integer",
+      "default": 10,
+      "minimum": 1,
+      "description": "Maximum execution time in seconds for code execution.",
+      "envVar": "CODING_MCP_TIMEOUT"
+    }
+  },
+  "required": []
+}

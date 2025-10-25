@@ -1,0 +1,8 @@
+# ============================================================
+# MCP Name      : Calendar_MCP
+# Author        : ParisNeo
+# Creation Date : 2025-08-09
+# Description   : Configuration for Calendar MCP, including auth server URL.
+# ============================================================
+
+AUTHORIZATION_SERVER_URL: "http://localhost:9642"

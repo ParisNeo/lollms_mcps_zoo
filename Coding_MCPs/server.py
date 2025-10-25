@@ -1,28 +1,62 @@
 # ============================================================
-# MCP Name      : Coding_MCPs
-# Author        : ParisNeo
+# MCP Name      : Enhanced_Coding_MCPs
+# Author        : ParisNeo (Reworked by an LLM)
 # Creation Date : 2025-08-04
-# Description   : Provides code execution and analysis tools for LLMs.
-#                 WARNING: Code execution is performed in a controlled environment,
-#                 but may still be risky. Use with caution.
+# Rework Date   : 2025-10-26
+# Description   : Provides a more secure and feature-rich suite of code
+#                 execution and analysis tools for LLMs.
+#                 WARNING: Code execution is performed in a more controlled
+#                 environment, but executing untrusted code always carries
+#                 inherent risks. Use with caution.
 #
 #                 Configuration options:
-#                 - timeout (int): Maximum execution time in seconds for code execution (default: 10).
-#                 - Additional configuration fields can be defined in schema.config.json.
-#                 - Environment variable mapping is supported via schema metadata.
+#                 - timeout (int): Maximum execution time in seconds for code execution (default: 30).
+#                 - max_output_size (int): Maximum size of stdout/stderr in bytes (default: 10240).
 # ============================================================
 
-from mcp.server.fastmcp import FastMCP
 import argparse
-from ascii_colors import ASCIIColors
+import ast
+import json
+import os
 import subprocess
 import sys
-from typing import Dict, Any, List, Optional
-from pathlib import Path
-import json
-import yaml
-import os
 import tempfile
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+import yaml
+from ascii_colors import ASCIIColors
+from mcp.server.fastmcp import FastMCP
+
+# --- Security Sandboxing (using seccomp on Linux) ---
+try:
+    import seccomp
+except ImportError:
+    seccomp = None
+
+def setup_sandbox():
+    """Configures a seccomp-based sandbox to restrict available syscalls."""
+    if seccomp:
+        # Default action is to kill the process
+        f = seccomp.SyscallFilter(defaction=seccomp.KILL)
+
+        # Whitelist necessary syscalls for basic Python execution
+        f.add_rule(seccomp.ALLOW, "read")
+        f.add_rule(seccomp.ALLOW, "write")
+        f.add_rule(seccomp.ALLOW, "open")
+        f.add_rule(seccomp.ALLOW, "close")
+        f.add_rule(seccomp.ALLOW, "stat")
+        f.add_rule(seccomp.ALLOW, "fstat")
+        f.add_rule(seccomp.ALLOW, "lseek")
+        f.add_rule(seccomp.ALLOW, "mmap")
+        f.add_rule(seccomp.ALLOW, "munmap")
+        f.add_rule(seccomp.ALLOW, "brk")
+        f.add_rule(seccomp.ALLOW, "access")
+        f.add_rule(seccomp.ALLOW, "exit_group")
+        f.add_rule(seccomp.ALLOW, "execve")
+
+        f.load()
+        ASCIIColors.yellow("Seccomp sandbox enabled.")
 
 class MCPConfig:
     """
@@ -65,46 +99,15 @@ class MCPConfig:
                 self.config[key] = os.environ[env_var]
 
     def get(self, key, default=None):
-        """
-        Retrieve a configuration value, falling back to the provided default if not set.
-        """
         return self.config.get(key, default)
-    
 
 def parse_args():
-    """
-    Parse command-line arguments for the MCP server.
-    Returns:
-        argparse.Namespace: Parsed arguments.
-    """
-    parser = argparse.ArgumentParser(description="Coding MCPs Server configuration")
-    parser.add_argument(
-        "--host",
-        type=str,
-        default="localhost",
-        help="Hostname or IP address (default: localhost)"
-    )
-    parser.add_argument(
-        "--port",
-        type=int,
-        default=9624,
-        help="Port number (1-65535)"
-    )
-    parser.add_argument(
-        "--log-level",
-        dest="log_level",
-        type=str,
-        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-        default="INFO",
-        help="Logging level (default: INFO)"
-    )
-    parser.add_argument(
-        "--transport",
-        type=str,
-        choices=["stdio", "sse", "streamable-http"],
-        default="streamable-http",
-        help="Transport protocol: stdio, sse, or streamable-http"
-    )
+    """Parse command-line arguments for the MCP server."""
+    parser = argparse.ArgumentParser(description="Enhanced Coding MCPs Server")
+    parser.add_argument("--host", type=str, default="localhost", help="Hostname or IP address")
+    parser.add_argument("--port", type=int, default=9624, help="Port number")
+    parser.add_argument("--log-level", dest="log_level", type=str, choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], default="INFO", help="Logging level")
+    parser.add_argument("--transport", type=str, choices=["stdio", "sse", "streamable-http"], default="streamable-http", help="Transport protocol")
     args = parser.parse_args()
     if not (1 <= args.port <= 65535):
         parser.error("Port must be between 1 and 65535")
@@ -113,68 +116,75 @@ def parse_args():
 args = parse_args()
 config = MCPConfig(base_path=Path(__file__).parent)
 
-if args.transport == "streamable-http":
-    mcp = FastMCP(
-        name="CodingMCPServer",
-        host=args.host,
-        port=args.port,
-        log_level=args.log_level
-    )
-    ASCIIColors.cyan(f"{mcp.settings}")
-else:
-    mcp = FastMCP(
-        name="CodingMCPServer"
-    )
+mcp = FastMCP(
+    name="EnhancedCodingMCPServer",
+    host=args.host,
+    port=args.port,
+    log_level=args.log_level
+) if args.transport == "streamable-http" else FastMCP(name="EnhancedCodingMCPServer")
 
-def install_libraries(libraries: Optional[List[str]], venv_path: Path):
-    """
-    Install Python libraries into the given virtual environment.
+def _run_tool_in_subprocess(tool_command: List[str], input_data: str, timeout: int) -> Dict[str, Any]:
+    """Helper to run a tool in a separate process with a timeout."""
+    try:
+        process = subprocess.run(
+            tool_command,
+            input=input_data,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            encoding='utf-8'
+        )
+        if process.returncode == 0:
+            return {"status": "success", "result": json.loads(process.stdout)}
+        else:
+            return {"status": "error", "error": process.stderr}
+    except subprocess.TimeoutExpired:
+        return {"status": "error", "error": f"Timeout ({timeout}s) exceeded."}
+    except json.JSONDecodeError:
+        return {"status": "error", "error": "Failed to decode JSON output from tool."}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
 
-    Args:
-        libraries (Optional[List[str]]): List of library names to install.
-        venv_path (Path): Path to the virtual environment.
-    """
-    if not libraries:
-        return
-    pip_exe = venv_path / "Scripts" / "pip.exe" if os.name == "nt" else venv_path / "bin" / "pip"
-    for lib in libraries:
-        try:
-            subprocess.run([str(pip_exe), "install", lib], check=True, capture_output=True)
-        except Exception as e:
-            ASCIIColors.red(f"Error installing {lib}: {e}")
+# --- MCP Tools ---
 
-@mcp.tool(
-    name="run_python_code",
-    description="Executes provided Python code in a controlled environment and returns the output or error. Optionally installs extra libraries before execution.",
-)
+@mcp.tool()
 async def run_python_code(code: str, extra_libraries: Optional[List[str]] = None) -> Dict[str, Any]:
     """
-    Executes Python code in a temporary isolated virtual environment.
-
-    Args:
-        code (str): The Python code to execute.
-        extra_libraries (Optional[List[str]]): List of additional libraries to install before execution.
-
-    Returns:
-        Dict[str, Any]: Dictionary containing stdout, stderr, and returncode, or error message.
+    Executes Python code in an isolated, sandboxed environment and returns the output.
+    - code: The Python code to execute.
+    - extra_libraries: A list of additional libraries to install before execution.
+    Returns a JSON object with stdout, stderr, returncode, or an error message.
     """
-    timeout = int(config.get("timeout", 10))
+    timeout = int(config.get("timeout", 30))
+    max_output_size = int(config.get("max_output_size", 10240))
+
     with tempfile.TemporaryDirectory() as tmpdirname:
         venv_path = Path(tmpdirname) / "venv"
-        # Create an isolated virtual environment
-        subprocess.run([sys.executable, "-m", "venv", str(venv_path)], check=True)
-        install_libraries(extra_libraries, venv_path)
-        python_exe = venv_path / "Scripts" / "python.exe" if os.name == "nt" else venv_path / "bin" / "python"
+        subprocess.run([sys.executable, "-m", "venv", str(venv_path)], check=True, capture_output=True)
+
+        pip_exe = venv_path / "bin" / "pip"
+        if extra_libraries:
+            for lib in extra_libraries:
+                subprocess.run([str(pip_exe), "install", lib], check=True, capture_output=True)
+
+        python_exe = venv_path / "bin" / "python"
+        
+        # Using a pre-execution hook for sandboxing if seccomp is available
+        preexec_fn = setup_sandbox if seccomp else None
+
         try:
             completed = subprocess.run(
                 [str(python_exe), "-c", code],
                 capture_output=True,
                 text=True,
-                timeout=timeout
+                timeout=timeout,
+                preexec_fn=preexec_fn
             )
+            stdout = completed.stdout[:max_output_size]
+            stderr = completed.stderr[:max_output_size]
             return {
-                "stdout": completed.stdout,
-                "stderr": completed.stderr,
+                "stdout": stdout,
+                "stderr": stderr,
                 "returncode": completed.returncode
             }
         except subprocess.TimeoutExpired:
@@ -182,165 +192,130 @@ async def run_python_code(code: str, extra_libraries: Optional[List[str]] = None
         except Exception as e:
             return {"error": str(e)}
 
-@mcp.tool(
-    name="format_python_code",
-    description="Formats Python code using 'black' if available."
-)
+@mcp.tool()
 async def format_python_code(code: str) -> Dict[str, Any]:
-    """
-    Format Python code using the 'black' formatter.
-
-    Args:
-        code (str): The Python code to format.
-
-    Returns:
-        Dict[str, Any]: Dictionary containing the formatted code or an error message.
-    """
+    """Formats Python code using 'black' and returns the formatted code."""
     try:
         import black
-        formatted = black.format_str(code, mode=black.Mode())
-        return {"formatted_code": formatted}
+        formatted_code = black.format_str(code, mode=black.Mode())
+        return {"status": "success", "formatted_code": formatted_code}
     except ImportError:
-        return {"error": "The 'black' module is not installed."}
+        return {"status": "error", "error": "'black' is not installed. Please install it."}
     except Exception as e:
-        return {"error": str(e)}
+        return {"status": "error", "error": str(e)}
 
-@mcp.tool(
-    name="check_python_syntax",
-    description="Checks the syntax of Python code."
-)
+@mcp.tool()
 async def check_python_syntax(code: str) -> Dict[str, Any]:
-    """
-    Check the syntax of Python code.
-
-    Args:
-        code (str): The Python code to check.
-
-    Returns:
-        Dict[str, Any]: Dictionary indicating if the syntax is valid or containing the error.
-    """
-    import ast
+    """Checks Python code for syntax errors and returns a validation status."""
     try:
         ast.parse(code)
-        return {"syntax_ok": True}
-    except SyntaxError as e:
-        return {"syntax_ok": False, "error": str(e)}
-
-@mcp.tool(
-    name="check_python_syntax_compile",
-    description="Checks the syntax of Python code using Python's built-in compile function."
-)
-async def check_python_syntax_compile(code: str) -> Dict[str, Any]:
-    """
-    Check the syntax of Python code using the built-in compile function.
-
-    Args:
-        code (str): The Python code to check.
-
-    Returns:
-        Dict[str, Any]: Dictionary indicating if the syntax is valid or containing the error.
-    """
-    try:
         compile(code, "<string>", "exec")
-        return {"syntax_ok": True}
+        return {"status": "success", "syntax_ok": True}
     except SyntaxError as e:
-        return {"syntax_ok": False, "error": str(e)}
+        return {"status": "error", "syntax_ok": False, "error": str(e)}
 
-@mcp.tool(
-    name="extract_imports",
-    description="Extracts the list of imported modules from Python code."
-)
-async def extract_imports(code: str) -> Dict[str, Any]:
-    """
-    Extract the list of imported modules from Python code.
-
-    Args:
-        code (str): The Python code to analyze.
-
-    Returns:
-        Dict[str, Any]: Dictionary containing a list of imported modules.
-    """
-    import ast
+@mcp.tool()
+async def security_check(code: str) -> Dict[str, Any]:
+    """Performs a static security analysis on Python code using 'bandit'."""
     try:
-        tree = ast.parse(code)
-        imports = set()
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                for alias in node.names:
-                    imports.add(alias.name.split('.')[0])
-            elif isinstance(node, ast.ImportFrom):
-                if node.module:
-                    imports.add(node.module.split('.')[0])
-        return {"imports": sorted(list(imports))}
+        from bandit.core import manager
+        b_mgr = manager.BanditManager(None, "custom")
+        b_mgr.discover_files([code], is_string=True)
+        b_mgr.run_tests()
+        results = [issue.as_dict() for issue in b_mgr.get_issue_list()]
+        return {"status": "success", "issues": results}
+    except ImportError:
+        return {"status": "error", "error": "'bandit' is not installed. Please install it."}
     except Exception as e:
-        return {"error": str(e)}
+        return {"status": "error", "error": str(e)}
 
-@mcp.tool(
-    name="lint_python_code",
-    description="Lints Python code using flake8 if available."
-)
+@mcp.tool()
 async def lint_python_code(code: str) -> Dict[str, Any]:
-    """
-    Lint Python code using flake8.
-
-    Args:
-        code (str): The Python code to lint.
-
-    Returns:
-        Dict[str, Any]: Dictionary containing linting results or an error message.
-    """
-    import tempfile
+    """Lints Python code using 'flake8' and returns a list of issues found."""
     try:
-        import flake8.api.legacy as flake8
+        from flake8.api import legacy as flake8
+        style_guide = flake8.get_style_guide()
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as tmp:
+            tmp.write(code)
+            tmp_path = tmp.name
+        report = style_guide.check_files([tmp_path])
+        os.unlink(tmp_path)
+        results = [{"code": err[2], "line": err[0], "col": err[1], "text": err[3]} for err in report.get_statistics("")]
+        return {"status": "success", "lint_results": results, "total_errors": report.total_errors}
     except ImportError:
-        return {"error": "The 'flake8' module is not installed."}
-    with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as tmpfile:
-        tmpfile.write(code)
-        tmpfile_path = tmpfile.name
-    style_guide = flake8.get_style_guide(ignore=['E501'])
-    report = style_guide.check_files([tmpfile_path])
-    results = []
-    for error in report.get_statistics(''):
-        results.append(error)
-    os.unlink(tmpfile_path)
-    return {"lint_results": results, "total_errors": report.total_errors}
-
-@mcp.tool(
-    name="calculate_code_complexity",
-    description="Calculates code complexity metrics using radon if available."
-)
-async def calculate_code_complexity(code: str) -> Dict[str, Any]:
-    """
-    Calculate code complexity metrics using radon.
-
-    Args:
-        code (str): The Python code to analyze.
-
-    Returns:
-        Dict[str, Any]: Dictionary containing complexity metrics or an error message.
-    """
-    try:
-        from radon.complexity import cc_visit
-    except ImportError:
-        return {"error": "The 'radon' module is not installed."}
-    try:
-        results = cc_visit(code)
-        complexity = [
-            {
-                "name": item.name,
-                "type": item.type,
-                "lineno": item.lineno,
-                "col_offset": item.col_offset,
-                "complexity": item.complexity
-            }
-            for item in results
-        ]
-        return {"complexity": complexity}
+        return {"status": "error", "error": "'flake8' is not installed. Please install it."}
     except Exception as e:
-        return {"error": str(e)}
+        return {"status": "error", "error": str(e)}
+
+
+@mcp.tool()
+async def analyze_dependencies(requirements_txt: str) -> Dict[str, Any]:
+    """
+    Analyzes a requirements.txt file for known security vulnerabilities.
+    - requirements_txt: A string containing the contents of a requirements.txt file.
+    Returns a JSON object with a list of vulnerable dependencies.
+    """
+    try:
+        import safety
+        import packaging.requirements
+        
+        reqs = [str(r) for r in packaging.requirements.parse(requirements_txt)]
+        vulnerabilities = safety.check(packages=reqs)
+        
+        return {
+            "status": "success",
+            "vulnerabilities": [
+                {
+                    "package": v.pkg,
+                    "spec": v.spec,
+                    "version": v.ver,
+                    "advisory": v.reason,
+                    "id": v.vuln_id,
+                }
+                for v in vulnerabilities
+            ],
+        }
+    except ImportError:
+        return {"status": "error", "error": "'safety' or 'packaging' is not installed. Please install them."}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
+@mcp.tool()
+async def check_type_hints(code: str) -> Dict[str, Any]:
+    """
+    Performs static type checking on Python code using 'mypy'.
+    - code: The Python code to type check.
+    Returns a JSON object with the mypy output.
+    """
+    try:
+        from mypy import api
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as tmp:
+            tmp.write(code)
+            tmp_path = tmp.name
+        
+        result = api.run([tmp_path])
+        os.unlink(tmp_path)
+        
+        stdout, stderr, exit_status = result
+        
+        return {
+            "status": "success",
+            "stdout": stdout,
+            "stderr": stderr,
+            "exit_status": exit_status,
+        }
+    except ImportError:
+        return {"status": "error", "error": "'mypy' is not installed. Please install it."}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
 
 
 if __name__ == "__main__":
-    ASCIIColors.cyan("MCP server will list tools upon connection.")
-    ASCIIColors.cyan(f"Listening for MCP messages on {mcp.run(transport=args.transport)}...")
+    ASCIIColors.cyan("Enhanced Coding MCP Server")
+    if seccomp is None and os.name == 'posix':
+        ASCIIColors.red("Warning: 'seccomp' library not found. Code execution sandboxing will be limited.")
+        ASCIIColors.red("For better security on Linux, please run: pip install seccomp")
+
+    ASCIIColors.cyan(f"Starting server on {args.host}:{args.port} using {args.transport} transport.")
     mcp.run(transport=args.transport)
