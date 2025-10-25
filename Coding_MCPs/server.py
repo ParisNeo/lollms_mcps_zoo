@@ -1,10 +1,13 @@
 # ============================================================
-# MCP Name      : Enhanced_Coding_MCPs
-# Author        : ParisNeo (Reworked by an LLM)
+# MCP Name      : Self_Sufficient_Coding_MCPs
+# Author        : ParisNeo (Reworked by an LLM with pipmaster)
 # Creation Date : 2025-08-04
 # Rework Date   : 2025-10-26
-# Description   : Provides a more secure and feature-rich suite of code
-#                 execution and analysis tools for LLMs.
+# Description   : Provides a secure, feature-rich, and self-sufficient
+#                 suite of code execution and analysis tools for LLMs.
+#                 It automatically verifies and installs its own dependencies
+#                 at startup using pipmaster.
+#
 #                 WARNING: Code execution is performed in a more controlled
 #                 environment, but executing untrusted code always carries
 #                 inherent risks. Use with caution.
@@ -24,6 +27,15 @@ import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+# Use pipmaster to ensure dependencies are installed
+try:
+    import pipmaster as pm
+except ImportError:
+    print("Pipmaster not found. Installing...")
+    subprocess.run([sys.executable, "-m", "pip", "install", "pipmaster"], check=True)
+    import pipmaster as pm
+
+
 import yaml
 from ascii_colors import ASCIIColors
 from mcp.server.fastmcp import FastMCP
@@ -37,32 +49,19 @@ except ImportError:
 def setup_sandbox():
     """Configures a seccomp-based sandbox to restrict available syscalls."""
     if seccomp:
-        # Default action is to kill the process
         f = seccomp.SyscallFilter(defaction=seccomp.KILL)
-
         # Whitelist necessary syscalls for basic Python execution
-        f.add_rule(seccomp.ALLOW, "read")
-        f.add_rule(seccomp.ALLOW, "write")
-        f.add_rule(seccomp.ALLOW, "open")
-        f.add_rule(seccomp.ALLOW, "close")
-        f.add_rule(seccomp.ALLOW, "stat")
-        f.add_rule(seccomp.ALLOW, "fstat")
-        f.add_rule(seccomp.ALLOW, "lseek")
-        f.add_rule(seccomp.ALLOW, "mmap")
-        f.add_rule(seccomp.ALLOW, "munmap")
-        f.add_rule(seccomp.ALLOW, "brk")
-        f.add_rule(seccomp.ALLOW, "access")
-        f.add_rule(seccomp.ALLOW, "exit_group")
-        f.add_rule(seccomp.ALLOW, "execve")
-
+        syscalls_whitelist = [
+            "read", "write", "open", "close", "stat", "fstat", "lseek",
+            "mmap", "munmap", "brk", "access", "exit_group", "execve"
+        ]
+        for sc in syscalls_whitelist:
+            f.add_rule(seccomp.ALLOW, sc)
         f.load()
-        ASCIIColors.yellow("Seccomp sandbox enabled.")
 
 class MCPConfig:
     """
     Handles configuration loading and merging for the MCP.
-    Loads schema from schema.config.json, user config from config.yaml,
-    applies defaults, and supports environment variable overrides.
     """
     def __init__(self, base_path=None):
         self.base_path = Path(base_path) if base_path else Path(__file__).parent
@@ -77,16 +76,12 @@ class MCPConfig:
         if schema_path.exists():
             with schema_path.open("r", encoding="utf-8") as f:
                 self.schema = json.load(f)
-        else:
-            self.schema = {}
 
     def _load_config(self):
         config_path_yaml = self.base_path / "config.yaml"
         if config_path_yaml.exists():
             with config_path_yaml.open("r", encoding="utf-8") as f:
                 self.config = yaml.safe_load(f) or {}
-        else:
-            self.config = {}
         # Apply schema defaults
         for key, meta in self.schema.get("properties", {}).items():
             if key not in self.config and "default" in meta:
@@ -103,7 +98,7 @@ class MCPConfig:
 
 def parse_args():
     """Parse command-line arguments for the MCP server."""
-    parser = argparse.ArgumentParser(description="Enhanced Coding MCPs Server")
+    parser = argparse.ArgumentParser(description="Self-Sufficient Coding MCPs Server")
     parser.add_argument("--host", type=str, default="localhost", help="Hostname or IP address")
     parser.add_argument("--port", type=int, default=9624, help="Port number")
     parser.add_argument("--log-level", dest="log_level", type=str, choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], default="INFO", help="Logging level")
@@ -113,37 +108,40 @@ def parse_args():
         parser.error("Port must be between 1 and 65535")
     return args
 
+# --- MCP Tool Dependencies ---
+# List of required packages for the MCP tools to function correctly.
+REQUIRED_PACKAGES = [
+    "pyyaml",
+    "ascii_colors",
+    "black",
+    "flake8",
+    "bandit",
+    "safety",
+    "packaging",
+    "mypy",
+    "radon"
+]
+if sys.platform == "linux":
+    REQUIRED_PACKAGES.append("seccomp")
+
+
+def check_and_install_dependencies():
+    """Uses pipmaster to verify and install all required packages."""
+    ASCIIColors.cyan("Checking for required dependencies...")
+    pm.ensure_packages(REQUIRED_PACKAGES, upgrade=True)
+    ASCIIColors.green("All dependencies are met.")
+
+
 args = parse_args()
 config = MCPConfig(base_path=Path(__file__).parent)
 
 mcp = FastMCP(
-    name="EnhancedCodingMCPServer",
+    name="SelfSufficientCodingMCPServer",
     host=args.host,
     port=args.port,
     log_level=args.log_level
-) if args.transport == "streamable-http" else FastMCP(name="EnhancedCodingMCPServer")
+) if args.transport == "streamable-http" else FastMCP(name="SelfSufficientCodingMCPServer")
 
-def _run_tool_in_subprocess(tool_command: List[str], input_data: str, timeout: int) -> Dict[str, Any]:
-    """Helper to run a tool in a separate process with a timeout."""
-    try:
-        process = subprocess.run(
-            tool_command,
-            input=input_data,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            encoding='utf-8'
-        )
-        if process.returncode == 0:
-            return {"status": "success", "result": json.loads(process.stdout)}
-        else:
-            return {"status": "error", "error": process.stderr}
-    except subprocess.TimeoutExpired:
-        return {"status": "error", "error": f"Timeout ({timeout}s) exceeded."}
-    except json.JSONDecodeError:
-        return {"status": "error", "error": "Failed to decode JSON output from tool."}
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
 
 # --- MCP Tools ---
 
@@ -162,15 +160,14 @@ async def run_python_code(code: str, extra_libraries: Optional[List[str]] = None
         venv_path = Path(tmpdirname) / "venv"
         subprocess.run([sys.executable, "-m", "venv", str(venv_path)], check=True, capture_output=True)
 
-        pip_exe = venv_path / "bin" / "pip"
+        pip_exe = venv_path / "bin" / "pip" if os.name != 'nt' else venv_path / "Scripts" / "pip.exe"
         if extra_libraries:
             for lib in extra_libraries:
                 subprocess.run([str(pip_exe), "install", lib], check=True, capture_output=True)
 
-        python_exe = venv_path / "bin" / "python"
+        python_exe = venv_path / "bin" / "python" if os.name != 'nt' else venv_path / "Scripts" / "python.exe"
         
-        # Using a pre-execution hook for sandboxing if seccomp is available
-        preexec_fn = setup_sandbox if seccomp else None
+        preexec_fn = setup_sandbox if seccomp and sys.platform != 'win32' else None
 
         try:
             completed = subprocess.run(
@@ -195,12 +192,10 @@ async def run_python_code(code: str, extra_libraries: Optional[List[str]] = None
 @mcp.tool()
 async def format_python_code(code: str) -> Dict[str, Any]:
     """Formats Python code using 'black' and returns the formatted code."""
+    import black
     try:
-        import black
         formatted_code = black.format_str(code, mode=black.Mode())
         return {"status": "success", "formatted_code": formatted_code}
-    except ImportError:
-        return {"status": "error", "error": "'black' is not installed. Please install it."}
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
@@ -217,87 +212,72 @@ async def check_python_syntax(code: str) -> Dict[str, Any]:
 @mcp.tool()
 async def security_check(code: str) -> Dict[str, Any]:
     """Performs a static security analysis on Python code using 'bandit'."""
+    from bandit.core import manager
     try:
-        from bandit.core import manager
         b_mgr = manager.BanditManager(None, "custom")
         b_mgr.discover_files([code], is_string=True)
         b_mgr.run_tests()
         results = [issue.as_dict() for issue in b_mgr.get_issue_list()]
         return {"status": "success", "issues": results}
-    except ImportError:
-        return {"status": "error", "error": "'bandit' is not installed. Please install it."}
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
 @mcp.tool()
 async def lint_python_code(code: str) -> Dict[str, Any]:
     """Lints Python code using 'flake8' and returns a list of issues found."""
+    from flake8.api import legacy as flake8
     try:
-        from flake8.api import legacy as flake8
         style_guide = flake8.get_style_guide()
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as tmp:
             tmp.write(code)
             tmp_path = tmp.name
         report = style_guide.check_files([tmp_path])
         os.unlink(tmp_path)
-        results = [{"code": err[2], "line": err[0], "col": err[1], "text": err[3]} for err in report.get_statistics("")]
+        
+        results = []
+        # The report.get_statistics('') returns a list of strings, not structured data.
+        # We need to parse them. A better approach is to use a custom formatter,
+        # but for simplicity, we process the raw report lines.
+        for line in report.get_raw_errors():
+             parts = line.split(':')
+             if len(parts) >= 4:
+                 results.append({
+                     "file": parts[0],
+                     "line": int(parts[1]),
+                     "col": int(parts[2]),
+                     "text": parts[3].strip()
+                 })
+
         return {"status": "success", "lint_results": results, "total_errors": report.total_errors}
-    except ImportError:
-        return {"status": "error", "error": "'flake8' is not installed. Please install it."}
     except Exception as e:
         return {"status": "error", "error": str(e)}
-
 
 @mcp.tool()
 async def analyze_dependencies(requirements_txt: str) -> Dict[str, Any]:
-    """
-    Analyzes a requirements.txt file for known security vulnerabilities.
-    - requirements_txt: A string containing the contents of a requirements.txt file.
-    Returns a JSON object with a list of vulnerable dependencies.
-    """
+    """Analyzes a requirements.txt file for known security vulnerabilities using 'safety'."""
+    import safety
+    import packaging.requirements
     try:
-        import safety
-        import packaging.requirements
-        
         reqs = [str(r) for r in packaging.requirements.parse(requirements_txt)]
         vulnerabilities = safety.check(packages=reqs)
-        
         return {
             "status": "success",
-            "vulnerabilities": [
-                {
-                    "package": v.pkg,
-                    "spec": v.spec,
-                    "version": v.ver,
-                    "advisory": v.reason,
-                    "id": v.vuln_id,
-                }
-                for v in vulnerabilities
-            ],
+            "vulnerabilities": [v._asdict() for v in vulnerabilities],
         }
-    except ImportError:
-        return {"status": "error", "error": "'safety' or 'packaging' is not installed. Please install them."}
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
-
 @mcp.tool()
 async def check_type_hints(code: str) -> Dict[str, Any]:
-    """
-    Performs static type checking on Python code using 'mypy'.
-    - code: The Python code to type check.
-    Returns a JSON object with the mypy output.
-    """
+    """Performs static type checking on Python code using 'mypy'."""
+    from mypy import api
     try:
-        from mypy import api
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as tmp:
             tmp.write(code)
             tmp_path = tmp.name
         
-        result = api.run([tmp_path])
+        stdout, stderr, exit_status = api.run([tmp_path])
         os.unlink(tmp_path)
-        
-        stdout, stderr, exit_status = result
         
         return {
             "status": "success",
@@ -305,14 +285,34 @@ async def check_type_hints(code: str) -> Dict[str, Any]:
             "stderr": stderr,
             "exit_status": exit_status,
         }
-    except ImportError:
-        return {"status": "error", "error": "'mypy' is not installed. Please install it."}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+@mcp.tool()
+async def calculate_code_complexity(code: str) -> Dict[str, Any]:
+    """Calculates code complexity metrics using 'radon'."""
+    from radon.complexity import cc_visit
+    try:
+        results = cc_visit(code)
+        complexity = [
+            {
+                "name": item.name,
+                "type": item.type,
+                "lineno": item.lineno,
+                "col_offset": item.col_offset,
+                "complexity": item.complexity,
+                "rank": item.rank
+            }
+            for item in results
+        ]
+        return {"status": "success", "complexity": complexity}
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
 
 if __name__ == "__main__":
-    ASCIIColors.cyan("Enhanced Coding MCP Server")
+    check_and_install_dependencies()
+    ASCIIColors.cyan("Self-Sufficient Coding MCP Server")
     if seccomp is None and os.name == 'posix':
         ASCIIColors.red("Warning: 'seccomp' library not found. Code execution sandboxing will be limited.")
         ASCIIColors.red("For better security on Linux, please run: pip install seccomp")
