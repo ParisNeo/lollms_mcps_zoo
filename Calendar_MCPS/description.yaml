@@ -4,5 +4,5 @@ creation_date: '2024-05-23T10:00:00.000000'
 description: A Model Context Protocol (MCP) server providing coding tools and environment access for Large Language Models (LLMs) within the lollms ecosystem. Enables LLMs to interact with and utilize external coding resources.
 disclaimer: This tool facilitates interaction with external coding resources. Incorrect configurations or incompatible resources can lead to unexpected behavior or errors. Always verify the LLM's output and ensure resource compatibility.
 last_update_date: '2024-05-23T20:00:00.000000'
-name: Coding_MCPs
+name: Calendar_MCPS
 version: 1.1

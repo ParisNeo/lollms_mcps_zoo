@@ -1,0 +1,8 @@
+author: Your Name
+category: Research
+creation_date: '2025-10-26T00:00:00.000000'
+description: A Model Context Protocol (MCP) server that provides Large Language Models (LLMs) with the ability to search for and retrieve academic papers from the arXiv.org repository. It allows LLMs to access scientific research, summaries, and authors on demand.
+disclaimer: This tool connects to the official arXiv API to fetch data. The availability and speed of the service depend on the arXiv servers. Please respect their terms of service. All content is provided by arXiv and its authors.
+last_update_date: '2025-10-26T00:00:00.000000'
+name: ArXiv_Search_MCP
+version: 1.0

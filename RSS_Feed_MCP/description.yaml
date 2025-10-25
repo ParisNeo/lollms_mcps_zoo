@@ -1,0 +1,8 @@
+author: Your Name
+category: Information
+creation_date: '2025-10-26T00:00:00.000000'
+description: A Model Context Protocol (MCP) server that allows a Large Language Model (LLM) to check for the latest updates from a user-defined list of RSS feeds. The feeds are configured in the config.yaml file, enabling the LLM to stay current with news, blogs, and other web content.
+disclaimer: This tool fetches data from external websites via their RSS feeds. The availability of the feeds and the accuracy of their content are not guaranteed. The tool is dependent on the proper formatting and uptime of the source feeds.
+last_update_date: '2025-10-26T00:00:00.000000'
+name: RSS_Feed_MCP
+version: 1.0
