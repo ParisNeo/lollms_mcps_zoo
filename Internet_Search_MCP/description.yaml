@@ -1,0 +1,8 @@
+author: ParisNeo
+category: Internet
+creation_date: '2025-10-26T00:00:00.000000'
+description: A Model Context Protocol (MCP) server that empowers Large Language Models (LLMs) with real-time internet search capabilities. It utilizes the DuckDuckGo search engine to provide direct web access within the lollms ecosystem, enabling LLMs to fetch current and relevant information.
+disclaimer: This tool connects to the live internet to fetch information. The accuracy, reliability, and safety of the content returned from external websites cannot be guaranteed. Users should exercise caution and critically evaluate the search results provided to the LLM.
+last_update_date: '2025-10-26T00:00:00.000000'
+name: Internet_Search_MCP
+version: 1.0
