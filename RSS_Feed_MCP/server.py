@@ -1,6 +1,6 @@
 # ============================================================
 # MCP Name      : RSS_Feed_MCP
-# Author        : Your Name
+# Author        : ParisNeo
 # Creation Date : 2025-10-26
 # Description   : Provides a tool for LLMs to check and retrieve
 #                 the latest entries from pre-configured RSS feeds.

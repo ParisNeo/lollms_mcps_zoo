@@ -1,4 +1,4 @@
-author: Your Name
+author: ParisNeo
 category: Research
 creation_date: '2025-10-26T00:00:00.000000'
 description: A Model Context Protocol (MCP) server that provides Large Language Models (LLMs) with the ability to search for and retrieve academic papers from the arXiv.org repository. It allows LLMs to access scientific research, summaries, and authors on demand.

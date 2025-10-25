@@ -1,0 +1,8 @@
+author: Your Name (from lollms function)
+category: Information
+creation_date: '2025-10-26T00:00:00.000000'
+description: A Model Context Protocol (MCP) server that gives a Large Language Model (LLM) the ability to fetch the text transcript from any YouTube video. This allows the LLM to "understand" or "read" the content of videos to answer questions, summarize, or analyze them.
+disclaimer: This tool relies on the YouTube Transcript API. Its functionality is dependent on YouTube's services and the availability of transcripts for a given video. Not all videos have transcripts, and the quality of auto-generated transcripts may vary.
+last_update_date: '2025-10-26T00:00:00.000000'
+name: YouTube_Transcript_MCP
+version: 1.0

@@ -1,0 +1,5 @@
+pyyaml
+ascii_colors
+fastmcp
+youtube-transcript-api
+pipmaster

@@ -1,4 +1,4 @@
-author: Your Name
+author: ParisNeo
 category: Information
 creation_date: '2025-10-26T00:00:00.000000'
 description: A Model Context Protocol (MCP) server that allows a Large Language Model (LLM) to check for the latest updates from a user-defined list of RSS feeds. The feeds are configured in the config.yaml file, enabling the LLM to stay current with news, blogs, and other web content.
