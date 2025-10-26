@@ -1,4 +1,4 @@
-author: Your Name (from lollms function)
+author: ParisNeo (from lollms function)
 category: Information
 creation_date: '2025-10-26T00:00:00.000000'
 description: A Model Context Protocol (MCP) server that gives a Large Language Model (LLM) the ability to fetch the text transcript from any YouTube video. This allows the LLM to "understand" or "read" the content of videos to answer questions, summarize, or analyze them.
