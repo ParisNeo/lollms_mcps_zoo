@@ -1,0 +1,8 @@
+  author: ParisNeo
+  category: Science & Math
+  creation_date: '2025-10-26T00:00:00.000000'
+  description: A Model Context Protocol (MCP) server providing a suite of symbolic mathematics tools for LLMs. Powered by the SymPy library, it enables exact computations in algebra and calculus, such as solving equations, simplifying expressions, differentiation, and integration.
+  disclaimer: This tool performs symbolic computations, which can be computationally intensive. Very complex expressions may lead to long processing times. The parsing of expressions assumes standard mathematical notation.
+  last_update_date: '2025-10-26T00:00:00.000000'
+  name: Symbolic_Math_MCP
+  version: 1.0

@@ -1,4 +1,4 @@
-author: Your Name
+author: ParisNeo
 category: Utilities
 creation_date: '2025-10-26T00:00:00.000000'
 description: A Model Context Protocol (MCP) server that provides a secure, advanced calculator for Large Language Models (LLMs). It can evaluate complex mathematical expressions, including functions and constants, using a sandboxed interpreter to prevent dangerous code execution.
